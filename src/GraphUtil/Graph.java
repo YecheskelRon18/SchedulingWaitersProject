@@ -13,13 +13,12 @@ public class Graph {
     private final List<Vertex> vertices;
     private final List<Edge> edges;
     private final Map<LocationV, Vertex> vertexByLocation;
-    private final Map<String, Integer> distanceMap;
+    private static final Map<String, Integer> distanceMap = new HashMap<>();
 
     public Graph() {
         vertices = new ArrayList<>();
         edges = new ArrayList<>();
         vertexByLocation = new HashMap<>();
-        distanceMap = new HashMap<>();
         buildDefaultLocationGraph();
     }
 

@@ -191,7 +191,7 @@ public class GeneticAlgorithm implements SchedulingAlgorithm {
                 copyEventAssignments(secondParent.getSchedule(),Child,event);
             }
         }
-        return repair(Child,events);
+        return repair(Child,waiters,events);
     }
 
 
@@ -244,12 +244,17 @@ public class GeneticAlgorithm implements SchedulingAlgorithm {
     // הפונקציה מקבלת Schedule רשימת מלצרים ורשימת אירועים
     // הפונקציה יוצרת Schedule חדש
     // לכל אירוע ברשימת האירועים הפונקציה תעתיק אל לוח השיבוצים החדש את כל השיבוצים החוקיים שיש בלוח המקורי לאותו אירוע
-    // לאחר מכן אם האירוע לא מלא הוא מוסיף מלצרים מחברת כוח אדם
-    private Schedule repair(Schedule schedule, List<Event> events) {
+    // לאחר מכן אם האירוע לא מלא הוא מנסה למלא אותו באמצעות backtracking
+    // אם האירוע עדיין לא מלא הוא מוסיף מלצרים מחברת כוח אדם
+    private Schedule repair(Schedule schedule, List<Waiter> waiters, List<Event> events) {
         Schedule RepairSchedule = new Schedule();
 
         for(Event event: events){
             copyRepairAssignments(schedule,RepairSchedule,event);
+            if (!eventIsFull(RepairSchedule, event)) {
+                backtrackFillEvent(RepairSchedule, event,
+                        backtrackingCandidates(RepairSchedule, event, waiters), 0);
+            }
             if (!eventIsFull(RepairSchedule, event)) {
                 fillWithExtraManPower(RepairSchedule, event);
             }
@@ -364,7 +369,7 @@ public class GeneticAlgorithm implements SchedulingAlgorithm {
         Chromosome parent2 = selectParent(population);
         Schedule childSchedule = crossover(parent1,parent2,waiters,events);
         childSchedule = mutate(childSchedule,waiters,events);
-        childSchedule = repair(childSchedule,events);
+        childSchedule = repair(childSchedule,waiters,events);
         Chromosome ChildChromosome = new Chromosome(childSchedule,fitness.calculateScore(childSchedule,waiters,events));
         return ChildChromosome;
     }
@@ -395,6 +400,38 @@ public class GeneticAlgorithm implements SchedulingAlgorithm {
         while(!eventIsFull(schedule,event)){
             schedule.addAssignment(new Assignment(event, Waiter.createManPowerExtra()));
         }
+    }
+
+    private List<Waiter> backtrackingCandidates(Schedule schedule, Event event, List<Waiter> waiters) {
+        List<Waiter> candidates = new ArrayList<>();
+        for (Waiter waiter : ShuffleList(waiters)) {
+            if (Constraint.canAssign(schedule, waiter, event)) {
+                candidates.add(waiter);
+            }
+        }
+        return candidates;
+    }
+
+    private boolean backtrackFillEvent(Schedule schedule, Event event, List<Waiter> candidates, int index) {
+        if (eventIsFull(schedule, event)) {
+            return true;
+        }
+        if (candidates.size() - index < event.getRequiredWaiters() - schedule.getAssignmentsForEvent(event).size()) {
+            return false;
+        }
+        return tryBacktrackingCandidates(schedule, event, candidates, index);
+    }
+
+    private boolean tryBacktrackingCandidates(Schedule schedule, Event event, List<Waiter> candidates, int index) {
+        for (int i = index; i < candidates.size(); i++) {
+            Assignment assignment = new Assignment(event, candidates.get(i));
+            schedule.addAssignment(assignment);
+            if (backtrackFillEvent(schedule, event, candidates, i + 1)) {
+                return true;
+            }
+            schedule.removeAssignment(assignment);
+        }
+        return false;
     }
     // פונקציה מקבל אירוע וschedule ומחזיקה TRUE אם באירוע יש מספיק מלצרים וFALSE אם האירוע לא מכיל מספיק מלצרים
     private boolean eventIsFull(Schedule schedule, Event event) {
